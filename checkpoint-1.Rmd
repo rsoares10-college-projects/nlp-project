@@ -1,0 +1,158 @@
+---
+title: "House Price Classification"
+author: "Antonny Mendonça, Júlia Sbardelatti, Rafael Monteiro, Wellington Santos"
+date: "25 de Abril de 2021"
+output:
+  html_document:
+    toc: true
+    number sections: true
+    toc_float: true
+    theme: spacelab
+---
+# Introdução
+
+<p> O conjunto de dados deste projeto prova que muito mais influencia as negociações de preços do que o número de quartos ou uma cerca branca. 
+
+Com 79 variáveis explicativas que descrevem (quase) todos os aspectos das casas residenciais em Ames, Iowa, este projeto cria um algoritmo para predição do preço final de imóveis.</p>
+
+## Objetivo
+
+ O objetivo desse projeto é prever se o preço de um ímovel será Low, Mid ou High price.
+
+## Avaliação
+
+<p> Para cada ID no conjunto de teste, você deve prever a classe da variável SalePrice </p>
+
+#### Métrica
+
+* F1 Score
+
+# Análise Inicial
+
+<p> Inicialmente importaremos  alguns pacotes que serão utilizados ao logo do projeto. Pacotes para realizar manipulação, análise e visualização dados. Para o treinamento do modelo usaremos o pacote nnet, que provê uma rede neural que permite classificação multinomial. </p>
+
+```{r message=FALSE, warning=FALSE}
+# library(caret)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(naniar)
+library(mice)
+library(randomForest)
+library(knitr)
+library(kableExtra)
+```
+
+## Configuração do Script
+
+<p> Depois definimos as configurações que serão utilizadas ao longo da seção. Neste caso, apenas definimos o tema padrão dos gráficos. </p> 
+
+```{r}
+theme_set(theme_bw())
+```
+
+## Visão Geral dos Dados
+
+<p> DDepois carregamos tanto os dados de treino e  checamos a estrutura do dataframe carregado. </p>
+
+```{r}
+train.data <- read.csv('train.csv')
+
+kable(train.data[1:6,], "html") %>% kable_styling("striped") %>% scroll_box(width = "100%")
+```
+<br/>
+```{r}
+str(train.data)
+```
+
+<p> As células a seguir indicam que há dados faltantes no dataframe de treino, porém não representam um percetual muito alto do total de dados. No caso, os dados faltantes representam cerca de 0.002% do total.</p>
+
+```{r}
+any(is.na(train.data))
+prop_miss(train.data)
+```
+
+<p> Também vamos sumarizar quais features possuem dados faltantes e em qual quantidade. Isso ajuda a dimensionar o quanto os dados faltantes afetam as variáveis afetadas.</p>
+
+```{r}
+miss_var_summary(train.data)
+```
+
+<p> Como a feature  MasVnrArea possuí apenas 4 dados faltantes, optamos por remover esses observações.</p>
+
+```{r}
+train.data <- train.data %>% filter(!is.na(MasVnrArea))
+```
+
+<P> Para realizar a imputação dos dados, ao invés de usar medidas de tendência central, como a média, moda e mediana, usaremos um algoritmo que preveja quais dados são mais adequados para imputação. 
+
+O pacote "mice" é uma boa escolha para a tarefa. Usamos 5 épocas para o treino de imputação.</p>
+
+```{r message=FALSE, warning=FALSE, results=FALSE}
+tempData <- mice(train.data,m=12,maxit=50,meth='pmm',seed=42)
+train.data <- complete(tempData,1)
+```
+
+<p> O gráfico abaixo descreve as possibilidades de datasets resultado. Isso quer dizer que pra cada resultado temos algumas possibilidades de dados imputáveis. As linhas em cor magenta indicam o quanto os datasets resultado são semelhantes ao dataset original (indicado pela linha azul).</p>
+
+```{r}
+densityplot(tempData)
+```
+
+## Limpeza de daos
+
+<p> separamos os dados em dois datavframes então: um com dados numéricos e outro com dados categóricos. Depois realizamos o encoding das variáveis categóricas afim de tornar possível a compressão delas pelo algoritmo.</p>
+
+```{r}
+num.train.data <- select_if(train.data, is.numeric)
+cat.train.data <- select_if(train.data, function(x){!is.numeric(x)})
+
+# Factor categorical data
+col.names <- colnames(cat.train.data)
+cat.train.data <- cat.train.data %>% mutate_at(col.names, factor)
+```
+
+## EDA - Análise Exploratória de Dados
+
+<p> Para facilitar a exploração de dados, juntamos todos os dados "limpos" num único dataframe novamente. </p>
+
+```{r}
+train.data <- cbind(num.train.data, cat.train.data)
+```
+<p> Analisando a distribuição dos tipos de SalePrice, notação que temos um viés para o Mid Price. </p>
+
+```{r}
+pl <- ggplot(cat.train.data, aes(x = SalePrice)) + geom_bar(aes(fill = SalePrice)) + theme(plot.title = element_text(hjust = 0.5))
+print(pl + ggtitle('Distribuição de Tipos de SalePrice'))
+```
+
+## Treinamento do modelo
+
+<p> Para o treinamento do modelo vamos usar uma regressão logística com uma fórmula multinomial. Esta fórmula permite que possamos trabalhar com mais de dois labels.</p>
+
+```{r}
+model <- randomForest(SalePrice ~., train.data)
+```
+
+<p> Agora carregaremos  o dataframe de teste e realizaremos algumas as predições necessárias. </p>
+
+````{r}
+test.data <- read.csv('test.csv')
+
+# predictions <- predict(train.data, test.data, type = "class")
+```
+
+## Evaluating Results
+
+<p> Por fim devemos analisar a Matrix confusão e os resultados estatísticos da floresta aleatória.</p?
+
+```{r}
+# confusionMatrix(predictions, testing$classe)
+```
+
+## Conclusion
+
+# Referências
+### Métodos de imputação de dados com R
+- https://datascienceplus.com/imputing-missing-data-with-r-mice-packag/
+- https://towardsdatascience.com/smart-handling-of-missing-data-in-r-6425f8a559f2
