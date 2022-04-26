@@ -32,7 +32,7 @@ Com 79 variáveis explicativas que descrevem (quase) todos os aspectos das casas
 <p> Inicialmente importaremos  alguns pacotes que serão utilizados ao logo do projeto. Pacotes para realizar manipulação, análise e visualização dados. Para o treinamento do modelo usaremos o pacote nnet, que provê uma rede neural que permite classificação multinomial. </p>
 
 ```{r message=FALSE, warning=FALSE}
-# library(caret)
+library(caret)
 library(dplyr)
 library(ggplot2)
 library(ggthemes)
@@ -82,6 +82,7 @@ miss_var_summary(train.data)
 
 ```{r}
 train.data <- train.data %>% filter(!is.na(MasVnrArea))
+train.data <- train.data %>% select(-PoolQC, - MiscFeature, - Alley, -Fence, -FireplaceQu)
 ```
 
 <P> Para realizar a imputação dos dados, ao invés de usar medidas de tendência central, como a média, moda e mediana, usaremos um algoritmo que preveja quais dados são mais adequados para imputação. 
@@ -89,7 +90,7 @@ train.data <- train.data %>% filter(!is.na(MasVnrArea))
 O pacote "mice" é uma boa escolha para a tarefa. Usamos 5 épocas para o treino de imputação.</p>
 
 ```{r message=FALSE, warning=FALSE, results=FALSE}
-tempData <- mice(train.data,m=12,maxit=50,meth='pmm',seed=42)
+tempData <- mice(train.data,m=5,maxit=50,meth='pmm',seed=42)
 train.data <- complete(tempData,1)
 ```
 
@@ -134,12 +135,38 @@ print(pl + ggtitle('Distribuição de Tipos de SalePrice'))
 model <- randomForest(SalePrice ~., train.data)
 ```
 
-<p> Agora carregaremos  o dataframe de teste e realizaremos algumas as predições necessárias. </p>
+<p> Como modelo preditor vamos usar uma floresta aleatória. O modelo de classificar os dados em uma das 3 classes alvo: High, Low ou Mid Price.
 
-````{r}
+Como o junto de teste também tem muitos dados faltantes vamos realizar a mesma estratégia de imputação de dados para o conjunto de teste também.
+</p>
+
+````{r message=FALSE, warning=FALSE, results=FALSE}
 test.data <- read.csv('test.csv')
 
-# predictions <- predict(train.data, test.data, type = "class")
+test.data <- test.data %>% select(-PoolQC, - MiscFeature, - Alley, -Fence, -FireplaceQu)
+
+# Performe same inputation stategy for test data
+tempData <- mice(test.data,m=5,maxit=50,meth='pmm',seed=7)
+test.data <- complete(tempData,3)
+```
+
+<p> É importante observar que vamos precisar fazer o encoding das variáveis categóricas do conjunto de teste assim como fizemos no conjunto de treino. </p>
+
+```{r}
+num.test.data <- select_if(test.data, is.numeric)
+cat.test.data <- select_if(test.data, function(x){!is.numeric(x)})
+
+# Factor categorical data
+col.names <- colnames(cat.test.data)
+for (col in col.names) {
+  levels(cat.test.data[col]) <- levels(cat.train.data[col])
+}
+
+# Join test data again
+test.data <- cbind(num.test.data, cat.test.data)
+
+# Make predictions
+# predictions <- predict(model, test.data, type = "class")
 ```
 
 ## Evaluating Results
